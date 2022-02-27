@@ -1,0 +1,183 @@
+---
+title: "first_project"
+author: "Emirza Rahman"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r}
+options(warn=-1)
+```
+
+```{r}
+package_sets <- c("tidyverse", "lubridate", "ggplot2", "dplyr", "patchwork", "hrbrthemes", "scales","tseries")
+install.packages(package_sets, repos = "http://cran.us.r-project.org")
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(dplyr)
+library(patchwork) # To display 2 charts together
+library(hrbrthemes)
+library(scales)
+library(tseries)
+```
+
+```{r}
+new.packages <- package_sets[!(package_sets %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+```
+
+```{r}
+#Excel files conversion to data sets
+dataset_legacy <- read.csv("C:/Users/emirz/Downloads/Bitcoin Historical Data - Investing.com.csv")
+gold_legacy <- read.csv("C:/Users/emirz/Downloads/XAU_USD Historical Data.csv") # Price of gold is based on XAU_USD
+```
+
+```{r}
+str(dataset_legacy)
+```
+
+```{r}
+head(dataset_legacy, 5)
+```
+
+```{r}
+names(dataset_legacy)[1] <- "Date" # Change the first column name to Date
+names(dataset_legacy)[7] <- "Change" # Change the seventh column name to Change
+
+dataset_legacy$Date <- mdy(dataset_legacy$Date) # Convert column Date type from chr to Date
+dataset_legacy$Price <- as.numeric(gsub(",", "", dataset_legacy$Price))
+dataset_legacy$Open <- as.numeric(gsub(",", "", dataset_legacy$Open))
+dataset_legacy$High <- as.numeric(gsub(",", "", dataset_legacy$High))
+dataset_legacy$Low <- as.numeric(gsub(",", "", dataset_legacy$Low))
+
+colnames(dataset_legacy)[6] <- "temp_Vol." # Make this temporary column before removed
+dataset_legacy <- dataset_legacy %>% # Mutate a new column for the converted value of column temp_Vol.
+  mutate(Vol. = case_when(
+    str_detect(temp_Vol., "M") ~ as.numeric(str_extract(temp_Vol., "[\\d\\.]+")) * 1000000, # This irregular expression can be seen from R regular expressions
+    str_detect(temp_Vol., "K") ~ as.numeric(str_extract(temp_Vol., "[\\d\\.]+")) * 1000,
+  ))
+dataset_legacy <- subset(dataset_legacy, select = -(temp_Vol.))
+
+dataset_legacy$Change <- as.numeric(gsub("%", "", dataset_legacy$Change))
+
+dataset <- dataset_legacy
+str(dataset)
+```
+
+```{r}
+names(gold_legacy)[1] <- "Date" # Change the first column name to Date
+names(gold_legacy)[6] <- "Change" # Change the seventh column name to Change
+
+gold_legacy$Date <- mdy(gold_legacy$Date) # Convert column Date type from chr to Date
+gold_legacy$Price <- as.numeric(gsub(",", "", gold_legacy$Price))
+gold_legacy$Open <- as.numeric(gsub(",", "", gold_legacy$Open))
+gold_legacy$High <- as.numeric(gsub(",", "", gold_legacy$High))
+gold_legacy$Low <- as.numeric(gsub(",", "", gold_legacy$Low))
+
+gold_legacy$Change <- as.numeric(gsub("%", "", gold_legacy$Change))
+
+gold_dataset <- gold_legacy
+str(gold_dataset)
+```
+
+```{r}
+df <- dataset %>%
+  group_by(Date, Price) %>%
+  summarise()
+
+df <- df[df$Date >= "2021-02-26" & df$Date <= "2022-02-26",]
+df
+```
+
+```{r}
+df_gold <- gold_dataset %>%
+  group_by(Date, Price) %>%
+  summarise()
+
+df_gold <- df_gold[df_gold$Date >= "2021-02-26" & df_gold$Date <= "2022-02-26",]
+df_gold
+```
+```{r}
+df <- left_join(df, df_gold, by="Date")
+df$Price.y[is.na(df$Price.y)] <- mean(df$Price.y, na.rm = TRUE) # Fill the NAs with its total mean
+head(df, 5)
+```
+
+```{r}
+cor(df$Price.x, df$Price.y)
+```
+
+```{r}
+vol_x = sd(df$Price.x) / mean(df$Price.x)
+vol_x
+```
+
+```{r}
+vol_y = sd(df$Price.y) / mean(df$Price.y)
+vol_y
+```
+
+```{r}
+p_detail <- ggplot(df, aes(x=Date)) +
+  geom_line(aes(y=Price.y*26.735429682317175178397337163756, colour = "Gold ($)")) + # Adjust the starting price on the given date to match with the other variable
+  geom_line(aes(y=Price.x, colour = "Bitcoin ($)")) +
+  
+  theme_ipsum() +
+  
+  theme(legend.position = "right", axis.title.x = element_text(margin = margin(t = 25)), axis.text.x = element_text(size = 10), axis.text.y = element_text(size = 10)) +
+  xlab("Coefficient of Variation for Gold and Bitcoin are 0.022 and 0.195 Respectively - SD / Mean)") +
+  ylab("") +
+  ggtitle("Gold and Bitcoin Price Stability Comparison", subtitle = "Gold starting price is adjusted to Bitcoin starting price") +
+  scale_y_continuous(labels = label_number(suffix = "K", scale = 1e-3)) +
+  labs(caption = "Date Range: February 26, 2021 - February 26, 2022 (A One-Year Comparison)\n\nIllustrator: Emirza Rahman") +
+  
+  scale_color_manual(name = "Legend", values=c("Gold ($)"="coral", "Bitcoin ($)"="purple"))
+
+p_detail
+```
+
+```{r}
+df2 <- dataset %>%
+  group_by(Date, Price) %>%
+  summarise()
+
+df2 <- df2[df2$Date >= "2018-02-26" & df2$Date <= "2022-02-26",]
+df2
+```
+
+```{r}
+df2_gold <- gold_dataset %>%
+  group_by(Date, Price) %>%
+  summarise()
+
+df2_gold <- df2_gold[df2_gold$Date >= "2018-02-26" & df2_gold$Date <= "2022-02-26",]
+df2_gold
+```
+
+```{r}
+df2 <- left_join(df2, df2_gold, by="Date")
+#df2$Price.y[is.na(df2$Price.y)] <- mean(df2$Price.y, na.rm = TRUE) # Fill the NAs with its total mean
+head(df2, 5)
+```
+
+```{r}
+p <- ggplot(df2, aes(x=Date)) +
+  geom_line(aes(y=Price.y * 7.7156789197299324831207801950488, colour = "Gold ($)")) + # Adjust the starting price on the given date to match with the other variable
+  geom_line(aes(y=Price.x, colour = "Bitcoin ($)")) +
+  
+  theme_ipsum() +
+  
+  theme(legend.position = "right", axis.title.x = element_text(margin = margin(t = 25)), axis.text.x = element_text(size = 10), axis.text.y = element_text(size = 10)) +
+  xlab("The highlighted area shows the date range between February 26, 2021 - Februrary 26, 2022") +
+  ylab("") +
+  ggtitle("Gold and Bitcoin Price Stability Comparison", subtitle = "Gold starting price is adjusted to Bitcoin starting price") +
+  scale_y_continuous(labels = label_number(suffix = "K", scale = 1e-3)) +
+  labs(caption = "Date Range: February 26, 2018 - February 26, 2022 (A 4-Year Comparison)\n\nIllustrator: Emirza Rahman") +
+  
+  scale_color_manual(name = "Legend", values=c("Gold ($)"="coral", "Bitcoin ($)"="purple"))
+
+p + annotate("rect", xmin=as.Date("2021-02-26", "%Y-%m-%d"), xmax=as.Date("2022-02-26", "%Y-%m-%d"), ymin=0, ymax=Inf, alpha=0.2, fill="green")
+```
